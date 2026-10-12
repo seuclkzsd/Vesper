@@ -1,0 +1,6 @@
+/target
+.env
+run_output/
+*.zip
+build.log
+build-musl.log

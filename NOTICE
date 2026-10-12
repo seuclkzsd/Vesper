@@ -1,0 +1,31 @@
+Vesper
+Copyright 2026 the starwing team
+
+Vesper is the agent that the team "starwing" submitted as its final version to the
+GOSIM 2026 Agentic Observer Hackathon (survey26), https://create.gosim.org/survey26/.
+
+Licensing
+---------
+
+* Code written by the team is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+* The project started from the organizers' Rust example project ("rust-pro", examples/rust-pro
+  in the challenge repository), which is licensed under the Creative Commons
+  Attribution-NonCommercial 4.0 International License (CC BY-NC 4.0,
+  https://creativecommons.org/licenses/by-nc/4.0/). Portions derived from that example remain
+  under CC BY-NC 4.0 and are used here with attribution and for non-commercial purposes only.
+  About 16 % of the substantive source lines are still identical to the example, mostly in:
+    - src/skymath.rs
+    - src/main.rs (protocol loop and project skeleton)
+    - src/planner/mod.rs, src/planner/learn.rs, src/planner/search.rs
+  .env.example is the organizers' file, unchanged.
+
+* The task cards, simulated data, protocol, evaluation and runner code are the organizers'
+  materials (CC BY-NC 4.0). They are not included in this repository.
+
+Attribution: GOSIM 2026 Agentic Observer Hackathon (https://create.gosim.org/survey26/).
+The organizers will publish an article on this benchmark; once it is out, please cite that
+article instead.
+
+Third-party crates (see Cargo.toml / Cargo.lock) keep their own licenses: serde_json, regex,
+ureq and libc are available under MIT or Apache-2.0.

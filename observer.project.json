@@ -1,0 +1,9 @@
+{
+  "schema_version": "observer-project-v1",
+  "protocol": "jsonl-v4",
+  "image": "rust:1-bookworm",
+  "working_directory": ".",
+  "build": [["cargo", "build", "--release", "--locked"]],
+  "run": ["./target/release/rust-pro"],
+  "environment": {"CARGO_HOME": "/tmp/cargo-home", "PRO_PACE_SAFETY": "2.0", "PRO_FOV": "0.3"}
+}
