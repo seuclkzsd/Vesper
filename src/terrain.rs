@@ -1,12 +1,12 @@
 //! Terrain obstruction sectors learnt from the own hits.
 //!
-//! The initial bulletin names each terrain sector only by the 8-point compass direction of its centre. The v4
+//! The initial bulletin names each terrain sector only by the 8-point compass direction of its centre. The engine's
 //! weather generator draws a sector as: start uniform on [0, 360), width uniform on [30, 70] deg, altitude from 0
 //! up to a maximum uniform on [35, 50] deg (`v4_weather_simulator.py` terrain block, reference weather config),
 //! and the notice direction is the compass point nearest to the sector centre. So given the label the centre lies
 //! within +-22.5 deg of it. A target inside a sector scores 0 for that part of the exposure.
 //!
-//! The stock planner avoids the whole bound (label +-60 deg, altitude below 50 deg) for the entire season, which can
+//! A hard cut that avoids the whole bound (label +-60 deg, altitude below 50 deg) for the entire season can
 //! hide a large part of the sky (on a site where the footprint culminates low in that direction, every target
 //! there). Here every sector keeps a uniform prior over a grid of (centre, half width, maximum altitude); each
 //! assigned target near the sector is evidence (clearly scored: its mid-exposure position is outside the sector;
@@ -14,7 +14,7 @@
 //! so a mislabelled outcome does not wipe out the belief); outcomes within 1.5 deg / 0.6 deg of a hypothesis' edge
 //! do not count against it (grid step, a track crossing the edge). The planner uses P(clear) = 1 - P(blocked) as
 //! an expected-value factor instead of the hard cut. If even the best hypothesis is contradicted often (two sectors
-//! behind one label, or a config outside the reference ranges) the label falls back to the stock hard cut.
+//! behind one label, or a config outside the reference ranges) the label falls back to that hard cut.
 
 use crate::skymath::wrap180;
 
@@ -27,7 +27,7 @@ const HALF_WIDTH: (f64, f64) = (15.0, 35.0);
 const MAX_ALT: (f64, f64) = (35.0, 50.0);
 const COLS: usize = 121; // offsets -60..=60 deg, 1 deg
 const ROWS: usize = 101; // altitudes 0..=50 deg, 0.5 deg
-pub const STOCK_HALF_ANGLE: f64 = 60.0; // stock hard cut: label +-60 deg ...
+pub const STOCK_HALF_ANGLE: f64 = 60.0; // fallback hard cut: label +-60 deg ...
 pub const STOCK_MAX_ALT: f64 = 50.0; // ... below 50 deg
 
 pub struct TerrainBelief {
@@ -125,7 +125,7 @@ impl TerrainBelief {
         self.evidence += 1;
         let best = self.contradicted.iter().copied().min().unwrap_or(0) as usize;
         if best >= 4 && best * 10 >= self.evidence {
-            self.collapsed = true; // no single sector explains the outcomes: back to the stock hard cut
+            self.collapsed = true; // no single sector explains the outcomes: back to the hard cut
         } else if changed {
             self.rebuild();
         }

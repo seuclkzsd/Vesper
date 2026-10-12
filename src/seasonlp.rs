@@ -1,4 +1,4 @@
-//! Season LP (notes/15): a price for field time per (7-night block x 1 h LST bin) node. Groups = sky cell (5 deg)
+//! Season LP: a price for field time per (7-night block x 1 h LST bin) node. Groups = sky cell (5 deg)
 //! x T_sat class; value = science still to gain, need = typical field-seconds (fibre-seconds over fibres x fill x
 //! use efficiency). A cell may use any node where it is above the limit, at relative quality q = airmass term at
 //! transit / airmass term. The LP max sum(value) s.t. node capacities is solved in the dual by damped price steps
@@ -18,7 +18,7 @@ const CLASSES: usize = 6;
 /// Knobs (PRO_SLP_*). mode (PRO_SLP): 0 off, 1 the cell factor replaces the urgency's, 2 multiplies it, 3 no factor;
 /// alpha, lo: the factor; lam: the time price is capped at lam x the LP price of the node now (0: no cap), but never
 /// below floor x the EMA price where time is scarce: full when the first solve serves <= floor_served - 0.2 of the
-/// demand, none at >= floor_served (notes/19); gate: the factor only on the urgency's density gate; cap_gate: the
+/// demand, none at >= floor_served; gate: the factor only on the urgency's density gate; cap_gate: the
 /// cap only off it.
 pub struct SlpCfg {
     pub mode: i64,

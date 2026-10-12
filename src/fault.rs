@@ -1,5 +1,4 @@
-//! Instrument faults: per-exposure change-point detector and expected-value report policy
-//! (notes/07d, 08-faults.md, 14-fault-silence.md).
+//! Instrument faults: per-exposure change-point detector and expected-value report policy.
 //!
 //! Engine facts used (v4_weather_simulator.py, v4_scorer.py):
 //! - A card has c faults (c unknown). The k-th starts at observing slot int(k N / (c + 1)) + U{-200..200}
@@ -11,7 +10,7 @@
 //!   earthquake notice is silent and looks like a fault, except that it fades night by night (degradation
 //!   D0 e^{-n/4} on night n). Earthquakes are not repaired by reports.
 //!
-//! Detector, fed one log throughput reading y per observe (planner.rs `read_throughput`):
+//! Detector, fed one log throughput reading y per observe (planner/learn.rs `read_throughput`):
 //! - Segments are (night, ALL-sky notice kinds). Inside a segment a bounded-LLR GLR-CUSUM tests y against the
 //!   median of the last <= 6 accepted readings. Readings from one slot see one W, so the run of drops counts
 //!   slots, not exposures. A strong alarm needs consistent drops in two slots read by exposures that stay
@@ -19,11 +18,11 @@
 //! - Across a boundary (new night, rain, cold snap, end of cloud/haze) the new level is compared with the
 //!   level before (weak alarm). The start of a cloud, haze or earthquake notice is a blind boundary.
 //! - An alarm becomes P(unrepaired fault now) from the window prior over c (with a hazard floor in case the
-//!   generator differs) and the per-slot rate of the same shape without a fault (notes/08-faults.md).
+//!   generator differs) and the per-slot rate of the same shape without a fault.
 //! - A drop that does not justify a report is held; on later nights its level is compared with what a fault
 //!   (stays), an earthquake (fades) or weather (reverts, night correlation 0.82) predicts, which updates P.
 //!
-//! Policy (expected value, notes/07d 4.1): a free report when P >= PI_FREE (PI_FREE_LAST for the last free
+//! Policy (expected value): a free report when P >= PI_FREE (PI_FREE_LAST for the last free
 //! one: it is worth more), a paid one when P >= PI_PAID for an in-night alarm or PI_PAID_PERSIST once later
 //! nights confirmed it; at most MAX_PAID_FALSE paid false reports. Backstops: before the first correct report
 //! a fault is certainly active at slot N/2 + 200 (every c >= 1); every fault window is inspected at its end;
@@ -42,7 +41,7 @@ const RUN_DROP: f64 = 0.25; // a reading this far below the reference joins the 
 const CLEAR_DROP: f64 = 0.15; // ... and one closer than this clears it
 const ONSET_TOLERANCE: i64 = 8; // slots: an onset this close to a window counts as inside it
 const PRIOR_FAULTS_PER_NIGHT: f64 = 1.0 / 122.0; // reference config: 1 fault on a ~123-night card
-const NIGHT_SD: f64 = 0.15; // night-to-night sd of the nightly log level (truth statistics)
+const NIGHT_SD: f64 = 0.15; // night-to-night sd of the nightly log level (empirical, from simulated ground truth)
 const NIGHT_CORRELATION: f64 = 0.82; // weather AR(1) between nights (reference weather config)
 const QUAKE_DECAY_NIGHTS: f64 = 4.0; // earthquake degradation D0 e^{-n/4}
 const MISS: f64 = 0.2; // P(the detector misses a fault until the next one starts)
@@ -78,9 +77,9 @@ impl Alarm {
         }
     }
 
-    /// Per-slot rate of this alarm without a fault (truth statistics of 22 cards, notes/08-faults.md): natural
-    /// in-night runs of >= 2 slots happen ~1e-4/slot but all stayed below 0.33 in log; under an earthquake
-    /// notice silent earthquakes add large ones; boundary drops are common.
+    /// Per-slot rate of this alarm without a fault (empirical, fitted to simulated ground truth): natural
+    /// in-night runs of >= 2 slots happen ~1e-4/slot but stayed below 0.33 in log in simulated runs; under an
+    /// earthquake notice silent earthquakes add large ones; boundary drops are common.
     fn false_rate(self, step: f64) -> f64 {
         match self {
             Alarm::Strong if step >= STEP_MIN - 0.03 => 2e-5,
@@ -90,12 +89,12 @@ impl Alarm {
             // a single-slot drop (natural rate ~3e-4/slot) that the next night still shows: weather persists
             // across nights (correlation 0.82), so the second night adds little against weather
             Alarm::Carry => 3e-4,
-            // natural single-slot drops >= 0.33 in log: 3.5e-5/slot (none >= 0.45), plus multiplier mix-ups
+            // natural single-slot drops >= 0.33 in log: ~3.5e-5/slot, plus multiplier mix-ups
             Alarm::Single => 1e-4,
             // per alarm, not per slot (alarm_p): two readings whose bound is below 0.9 / model error
             Alarm::Calib => 1e-5,
-            // a second earthquake under a standing notice is silent and fades like the first: common enough
-            // (L3: M5.4 on the 14th night of an M6.6 notice) that only a fault window makes this a fault
+            // a second earthquake under a standing notice is silent and fades like the first: common enough that
+            // only a fault window makes this a fault
             Alarm::CalibQuake => 1e-2,
         }
     }
@@ -789,7 +788,7 @@ impl FaultMonitor {
                 }
                 let p = self.p_started(j as i64);
                 let free = self.free_left();
-                // keep free reports for the detector (07d 4.3) while the certain backstop is still to come
+                // keep free reports for the detector while the certain backstop is still to come
                 let (two, one) = if self.correct == 0 && !self.backstop_done { (0.5, 0.85) } else { (0.3, 0.6) };
                 if (free >= 2 && p >= two)
                     || (free == 1 && p >= one)

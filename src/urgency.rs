@@ -1,14 +1,14 @@
-//! Season supply/demand urgency (research note 07 item #8, after 07c U2).
+//! Season supply/demand urgency.
 //!
-//! The stock urgency `1 + 1.5 / nights_left` only counts nights on which a target is above the altitude limit
-//! for 20 minutes, so a field whose *good* hours run out early in the season (it sets in the evening) looks as
-//! relaxed as one that stays up all season. This module multiplies it by a supply/demand factor per sky cell
-//! (5 x 5 deg): demand D_c = fibre-seconds the cell's unfinished targets still need; every remaining time node
-//! (one engine slot) is shared among the cells at a good altitude then, in proportion to their demand (DESI-style
+//! The base urgency `1 + urgency / nights_left` (knob `PRO_URGENCY`, default 2.5) only counts nights on which a target
+//! is above the altitude limit for 20 minutes, so a field whose *good* hours run out early in the season (it sets in
+//! the evening) looks as relaxed as one that stays up all season. This module multiplies it by a supply/demand factor
+//! per sky cell (5 x 5 deg): demand D_c = fibre-seconds the cell's unfinished targets still need; every remaining time
+//! node (one engine slot) is shared among the cells at a good altitude then, in proportion to their demand (DESI-style
 //! LST matching). Cell pressure u_c = D_c / supply_c = 1 / sum_n(sec_n / Dtot_n); factor = clip((u_c / u_mean)^alpha,
-//! lo, hi), u_mean = total demand / usable seconds. Cells with no good node left get `hi`. A boost (factor > 1)
-//! applies only while the target is at a good altitude: it ranks a crowded cell first inside its own good hours
-//! instead of chasing it at low altitude (notes/11); discounts apply at any altitude.
+//! lo, hi), u_mean = total demand / usable seconds. Cells with no good node left get `hi`. A boost (factor > 1) applies
+//! only while the target is at a good altitude: it ranks a crowded cell first inside its own good hours instead of
+//! chasing it at low altitude; discounts apply at any altitude.
 //!
 //! The factors are normalised per decision to mean 1 over the candidate pool (planner/search.rs), so they reorder
 //! targets that compete for the same time without changing the units of the learned time price. The planner
@@ -27,7 +27,7 @@ pub struct UrgencyConfig {
     pub lo: f64,
     pub hi: f64,
     pub cap: f64,
-    /// Boosts only at a good altitude (else the stock term alone).
+    /// Boosts only at a good altitude (else the base term alone).
     pub in_window: bool,
     /// A cell without (admitted) demand gets `lo`, the lowest pressure, instead of the neutral 1.
     pub idle_lo: bool,
@@ -234,7 +234,7 @@ impl Urgency {
         Some(self.inv[c as usize])
     }
 
-    /// Urgency multiplier of target i at altitude `sin_alt` now: the cell's factor times the stock last-chance
+    /// Urgency multiplier of target i at altitude `sin_alt` now: the cell's factor times the base last-chance
     /// factor `stock_last` (1 + urgency / nights_left), capped. None: the target has no cell (never above the limit).
     pub fn factor(&self, i: usize, stock_last: f64, sin_alt: f64) -> Option<f64> {
         let c = self.cell_of[i] as usize;

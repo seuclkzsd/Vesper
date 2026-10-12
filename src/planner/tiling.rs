@@ -1,4 +1,4 @@
-//! DESI-style tiling (notes/15): fixed field centres laid out once at initialize (a hexagonal lattice per pass,
+//! DESI-style tiling: fixed field centres laid out once at initialize (a hexagonal lattice per pass,
 //! passes offset from each other), offered to the search as extra candidate pointings; and the time preference
 //! of DESI's next-field selector (observe a field near its best hour angle), per target.
 
@@ -84,11 +84,11 @@ impl Planner {
 
     /// DESI's next-field selector prefers a field near its design hour angle. Per target: (sin alt now / sin of the
     /// best altitude still to come)^(airmass exponent x TIMING), the best still to come being the transit when the
-    /// target transits inside a later night's window (with TIMING_NIGHT also the best altitude left tonight). A
-    /// rising band that enters its season yields to targets at their best now (at transit, setting, or leaving the
-    /// season). Request targets keep 1 (their window is short). The search normalises the factors over each
-    /// decision's candidates (search.rs tim_norm), so they rank fields and leave the time price alone.
-    /// notes/15: the season part alone is robust; the tonight part piles rising fields onto the dawn hours.
+    /// target transits inside a later night's window. A rising band that enters its season yields to targets at
+    /// their best now (at transit, setting, or leaving the season). Request targets keep 1 (their window is short).
+    /// The search normalises the factors over each decision's candidates (search.rs tim_norm), so they rank fields
+    /// and leave the time price alone. Only the season part is used: preferring the best altitude left tonight would
+    /// pile rising fields onto the dawn hours.
     pub(super) fn timing_factor(&self, i: usize, _lst: f64, _rem_deg: f64, night_i: i64, sin_alt: f64) -> f64 {
         if self.p.timing <= 0.0 || self.last_transit.is_empty() || sin_alt <= 0.0 || self.request_terms.contains_key(&i) {
             return 1.0;

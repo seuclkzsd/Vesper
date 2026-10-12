@@ -1,6 +1,6 @@
 //! Learning from results (part of the planner): unsaturated hits give the quality level (scale) and one
 //! exact site-throughput reading per observe for the fault detector (read_throughput), saturated hits
-//! bound the band level (band.rs posterior; the stock fit stays as the fault reader's guess), terrain
+//! bound the band level (band.rs posterior; a grid fit stays as the fault reader's guess), terrain
 //! sectors are learnt from hits and zeros (terrain.rs), E = quality level / band level, and hit/miss
 //! patterns reveal the pointing offset of Hard-mode cards.
 
@@ -9,7 +9,7 @@ use super::*;
 impl Planner {
     /// Part of the recent data was lost: restart the factor estimates. With the per-exposure ledger (default)
     /// exactly: drop the hits of the lost observe-index window, keep each target's best remaining estimate
-    /// (PRO_RESYNC_LEDGER=0, stock: best score / (weight x top multiplier), an under-estimate). A resync without
+    /// (with PRO_RESYNC_LEDGER=0: best score / (weight x top multiplier), an under-estimate). A resync without
     /// best_scores is ignored; a target with a ledger hit newer than the resync's snapshot keeps what is known.
     pub(super) fn resync(&mut self, message: &Value) {
         let Some(rows) = message.get("best_scores").and_then(Value::as_array) else {
@@ -137,10 +137,9 @@ impl Planner {
             self.ledger.push((i, self.pending_index.unwrap_or(-1), factor.min(1.0)));
             if self.req_open(i) {
                 self.attempts[i] += 1; // not enough yet: lower its priority a little for next time
-                // futility guard (notes/41): a long attempt on a hard target that even scaled to the longest exposure
-                // stays well below the threshold; a few are unlucky nights, many mean the target is out of reach.
-                // Time-rich cards only (D: 44 such attempts online; the time goes to the idle upside); elsewhere it
-                // never fired on the plain cards and only reshuffled duty-log runs (zdl-A2 -0.15 %, zdl-X1 +0.21 %)
+                // futility guard: a long attempt on a hard target that even scaled to the longest exposure stays well
+                // below the threshold; a few are unlucky nights, many mean the target is out of reach. Time-rich
+                // (idle) cards only, where the time goes to the idle upside.
                 let (n, x) = self.p.req_futile;
                 if n > 0
                     && self.idle_card()
@@ -260,7 +259,7 @@ impl Planner {
         }
     }
 
-    /// Site throughput W = efficiency x transparency x sky / seeing seen by the last exposure (notes/07d 3.1).
+    /// Site throughput W = efficiency x transparency x sky / seeing seen by the last exposure.
     /// An unsaturated hit has score = weight x f T Q / f0T0 x multiplier, Q = W x G / q0 (G = lunar factor /
     /// airmass^a over the engine's 120 s pieces, public), so it gives W exactly up to the multiplier (declared
     /// if its band matches, else mismatch). Saturated hits show their multiplier, which brackets the band level
@@ -616,7 +615,7 @@ impl Planner {
         self.offset = centre;
     }
 
-    /// Band level fitted to the saturated hits of the last BAND_MEMORY_HOURS (stock fit). Only the fault reader
+    /// Band level fitted to the saturated hits of the last BAND_MEMORY_HOURS (grid fit). Only the fault reader
     /// uses it (read_throughput); the program choice uses the band posterior (band.rs).
     pub(super) fn fit_band_level(&mut self, hours: f64) {
         let recent: Vec<BandObs> = self.band_obs.iter().filter(|o| o.0 >= hours - BAND_MEMORY_HOURS).cloned().collect();

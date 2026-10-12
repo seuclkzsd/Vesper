@@ -2,10 +2,11 @@
 //! staff chat in zero-reward request reasons with engineering notices, stops, flat-lamp tests, closures and terrain
 //! behind codewords, ciphers, time zones, rumours and corrections). The rule decoder (`crate::dutylog`) decodes every
 //! line (`predecode`) and its facts ride on the lines (`attach`); the lines it is not sure of that are worth reading
-//! (`KEYS`) go to the model in chunks, spread over the season and asked in the background (no decision waits). The `submit_duty_facts` answer lists facts in the
-//! schema of dutylog/schema.md (times as written plus their clock; the agent converts to UTC) and a review of the
-//! rule facts. `merge`: a number the rules decoded with certainty wins; the model adds the facts the rules missed,
-//! fills open fields and sets the meaning (rumour, 灯's question, another site, a literal codeword, wrong).
+//! (`KEYS`) go to the model in chunks, spread over the season and asked in the background (no decision waits).
+//! The `submit_duty_facts` answer lists facts in the rule decoder's fact schema (`dutylog::Fact::schema`; times as
+//! written plus their clock, the agent converts to UTC) and a review of the rule facts. `merge`: a number the rules
+//! decoded with certainty wins; the model adds the facts the rules missed, fills open fields and sets the meaning
+//! (rumour, 灯's question, another site, a literal codeword, wrong).
 //! `DutyLog::resolve` turns the model's facts into facts in force (cancellations, corrections, rain deferrals,
 //! flat-test or previous-job anchors applied), which join the decoder's view (`duty::view_in`): fault times reported
 //! (free false reports only), stops waited out after a probe exposure, closures and terrain applied.
@@ -29,7 +30,7 @@ pub struct Facts {
     pub closures: Vec<(f64, f64, Vec<usize>)>, // [start, end), directions
 }
 
-/// Text that can be a duty log (CJK); the A-D cards' "time-critical follow-up" is not.
+/// Text that can be a duty log (CJK); a plain request reason such as "time-critical follow-up" is not.
 pub fn is_chat(text: &str) -> bool {
     text.chars().any(|c| c as u32 >= 0x3000)
 }
@@ -249,7 +250,6 @@ pub fn dirs_of(v: &Value) -> Vec<usize> {
     out
 }
 
-/// One fact of the model's answer about message `msg`, checked and put in schema form (UTC times), or None.
 /// Words a line must carry before the model may rule a time out on it: a cancellation or postponement, a correction,
 /// a rumour or an unsure question (a wrong veto would silence a real fault; a missed one costs a free report).
 const VETO: [&[&str]; 3] = [
@@ -266,6 +266,7 @@ const TOPIC: [(&str, &[&str]); 3] = [
     ("FlatTest", &["平场", "平場", "フラット", "flat", "镜盖", "鏡蓋"]),
 ];
 
+/// One fact of the model's answer about message `msg`, checked and put in schema form (UTC times), or None.
 fn norm(f: &Map<String, Value>, msg: &Msg, l: usize, off: i64) -> Option<Value> {
     let kind = KINDS.iter().find(|k| f.get("kind").and_then(Value::as_str) == Some(**k))?;
     let line = msg.lines[l].text.to_lowercase();
@@ -410,7 +411,7 @@ fn norm(f: &Map<String, Value>, msg: &Msg, l: usize, off: i64) -> Option<Value> 
     Some(out)
 }
 
-/// Rule and model facts of a batch put together (see the module notes). `model`: (message, line, fact);
+/// Rule and model facts of a batch put together (see the module docs). `model`: (message, line, fact);
 /// `wrong`: rule facts (by id, in batch order) the model's review rejects.
 pub fn merge(batch: &[Msg], model: &[(usize, usize, Value)], wrong: &BTreeSet<usize>) -> Vec<(usize, usize, Value)> {
     let mut out = Vec::new();
@@ -529,7 +530,6 @@ pub struct DutyLog {
 }
 
 impl DutyLog {
-    /// A new message: its rule facts count at once; the model reads it with the next batch.
     /// A new message: its rule facts count at once; its lines worth reading (`KEYS`, the closing codewords, and
     /// any line the rule decoder is unsure of) wait in chunks of at most `chars` for the model.
     pub fn add(&mut self, msg: Msg, chars: usize) {

@@ -8,7 +8,7 @@ use super::*;
 impl Planner {
     /// Season supply/demand urgency (urgency.rs). Only where fibres choose among several targets: with fewer
     /// than ~1 target per fibre area the field, not the fibre, is the bottleneck; a season-edge band is then
-    /// already observed whenever it is high, and the urgency only pushes it to lower altitude (notes/10 #2, 11).
+    /// already observed whenever it is high, and the urgency only pushes it to lower altitude.
     pub(super) fn build_urgency(&mut self) {
         let p = &self.p;
         let gate = ((self.fibre_density - p.urg_dens_lo) / p.urg_dens_span.max(1e-9)).max(0.0).min(1.0);
@@ -45,11 +45,11 @@ impl Planner {
 
     /// Recompute the urgency factors at the start of a night from the remaining demand: fibre-seconds each
     /// unfinished target still needs (time to saturate at a typical sky, times the share not yet reached).
-    /// `urg_econ` (r2/urgency2): only the demand the rest of the season can afford counts. Targets are ranked by
+    /// `urg_econ`: only the demand the rest of the season can afford counts. Targets are ranked by
     /// the value a full exposure still adds per fibre-second (1.2 w (g_max - g) / T, T = min(T_sat, max
     /// exposure)); demand is admitted down that ranking until it fills the remaining supply (fibre-seconds exposed
     /// per night second so far x night seconds left). Leftovers below that price (faint or nearly done targets)
-    /// are served in no band, so they must not make a band look short of time (notes/11-urgency2).
+    /// are served in no band, so they must not make a band look short of time.
     pub(super) fn update_urgency(&mut self, night_index: usize) {
         if self.urg.is_none() {
             return;
@@ -99,7 +99,7 @@ impl Planner {
         self.update_complete(night_index);
     }
 
-    /// Complete-or-skip (notes/15): P(a later exposure supersedes a partial one) = cs_pmax x the cell's supply /
+    /// Complete-or-skip: P(a later exposure supersedes a partial one) = cs_pmax x the cell's supply /
     /// demand (urgency.rs), for targets the useful season supply (x cs_eta) affords (as urg_econ); else 0.
     pub(super) fn update_complete(&mut self, night_index: usize) {
         let n = self.ids.len();
@@ -147,7 +147,7 @@ impl Planner {
         }
     }
 
-    /// Urgency multiplier of target i at altitude `sin_alt` now (stock: 1 + urgency / nights with 20 minutes
+    /// Urgency multiplier of target i at altitude `sin_alt` now (base: 1 + urgency / nights with 20 minutes
     /// above the limit), times the season LP factor (PRO_SLP=1: instead of the urgency's cell factor).
     pub(super) fn urgency_factor(&self, i: usize, night_i: i64, sin_alt: f64) -> f64 {
         let nights_left = (self.last_night[i] - night_i + 1).max(1);
@@ -328,9 +328,9 @@ impl Planner {
             _ => 0.0,
         };
         self.req_mu = (mu, sigma);
-        // hard: even the best exposure of the season needs a better than typical night (notes/19)
+        // hard: even the best exposure of the season needs a better than typical night
         let hard_x = -p.hrg_frac.max(1e-3).ln() - mu;
-        // ... or, for a window that closes early in the season, a looser threshold (notes/43): the western band
+        // ... or, for a window that closes early in the season, a looser threshold: the western band
         // transits at dusk on the first nights only, and deferring it meets the season's worst crowding
         let [early_frac, early_share] = p.hrg_early;
         let hard_x_early = if early_frac > 0.0 && early_frac < p.hrg_frac { -early_frac.ln() - mu } else { f64::NEG_INFINITY };
@@ -345,7 +345,7 @@ impl Planner {
         let (mut open_count, mut sum_pf, mut urgent) = (0usize, 0.0f64, 0usize);
         let top = p.req_top_nights;
         let mut ln_terms: Vec<f64> = Vec::new();
-        // early-closing targets (notes/43): (target, later good nights), scaled once every target is known
+        // early-closing targets: (target, later good nights), scaled once every target is known
         let [close_g, close_frac, close_xmax, close_ra] = p.req_close;
         let close_night = close_frac * nights as f64;
         let mut closing: Vec<(usize, usize)> = Vec::new();
@@ -363,7 +363,7 @@ impl Planner {
             self.req_hard[i] = hard;
             n_hard += usize::from(hard);
             n_early += usize::from(hard && early && self.req_xbest[r] >= hard_x);
-            // a hard target's later attempt succeeds as its measured long attempts do (bias, spread, closures)
+            // a hard target's later attempt follows the fitted model of long attempts (bias, spread, closures)
             let (shift, spread, keep) = if hard { (bias, (sigma * sigma + sd * sd).sqrt(), 1.0 - tail) } else { (0.0, sigma, 1.0) };
             let row = &self.req_x[r];
             // ln(1 - p_k) of every later night the target can be reached
@@ -411,8 +411,8 @@ impl Planner {
                 urgent += 1;
             }
         }
-        // early-closing band (notes/43): the best few later nights saturate P_future while the window's good nights run
-        // out, and the targets of one dusk band share those nights; scale by the good nights left per target in the band
+        // early-closing band: the best few later nights saturate P_future while the window's good nights run out,
+        // and the targets of one dusk band share those nights; scale by the good nights left per target in the band
         let mut n_scaled = 0;
         for &(i, good_later) in &closing {
             let band = closing
@@ -451,13 +451,12 @@ impl Planner {
         ));
     }
 
-    /// Idle upside applies on this card (notes/41): a time-rich season (scarcity below PRO_IDLE_SCARCITY).
+    /// Idle upside applies on this card: a time-rich season (scarcity below PRO_IDLE_SCARCITY).
     pub fn idle_card(&self) -> bool {
         self.p.idle_up[0] > 0.0 && self.scarcity < self.p.idle_up[1]
     }
 
-    /// The season plan has run out of work: its last solve uses under PRO_IDLE_USED of the remaining capacity
-    /// (fD: 15 % at night 196, then no demand; gX6 stays at 78-100 % all season, where a lull is only a lull).
+    /// The season plan has run out of work: its last solve uses under PRO_IDLE_USED of the remaining capacity.
     pub fn season_idle(&self) -> bool {
         self.slp.as_ref().map_or(false, |lp| lp.used_frac < self.p.idle_used)
     }
@@ -473,15 +472,15 @@ impl Planner {
         }
     }
 
-    /// Idle as the season running out of work, not a lull between fields (a lull mid-season on gX6 cost 0.1 % when
-    /// an idle exposure took the hour before the next field rose): the season plan has no work left for the
-    /// capacity, and the plain search has found nothing for PRO_IDLE_HOURS.
+    /// Idle as the season running out of work, not a lull between fields (an idle exposure in a mid-season lull
+    /// can take the hour before the next field rises): the season plan has no work left for the capacity, and the
+    /// plain search has found nothing for PRO_IDLE_HOURS.
     pub fn idle_ready(&self, now: f64) -> bool {
         let since = f64::from_bits(self.idle_since.load(std::sync::atomic::Ordering::Relaxed));
         !since.is_nan() && now - since >= self.p.idle_hours * 3600.0 && self.season_idle()
     }
 
-    /// Futility guard (notes/41): 0.8 per long failed attempt on a hard target beyond the first PRO_REQ_FUTILE.
+    /// Futility guard: 0.8 per long failed attempt on a hard target beyond the first PRO_REQ_FUTILE.
     pub(super) fn futile_mult(&self, i: usize) -> f64 {
         let n = self.p.req_futile.0;
         if n > 0 && self.futile[i] > n {
@@ -497,20 +496,20 @@ impl Planner {
     }
 
     /// (tail, bias, sd) of a t-second attempt on a hard target: P(closure or fault) and the ln-error's centre
-    /// and spread, fitted to the v5 long required attempts (notes/19).
+    /// and spread (empirical, fitted to long required attempts in simulated runs).
     pub(super) fn hrg_cal(&self, t: f64) -> (f64, f64, f64) {
         let [tail, bias, sd0, sd1] = self.p.hrg_cal;
         let x = t / 3600.0;
         ((tail * x).min(0.9), bias * x, (sd0 * sd0 + (sd1 * x).powi(2)).sqrt().max(1e-3))
     }
 
-    /// Hard required target still open, away from the last nights of its window: the notes/19 value applies.
+    /// Hard required target still open, away from the last nights of its window: the hard-target value applies.
     pub(super) fn hrg_on(&self, i: usize, night_i: i64) -> bool {
         self.req_hard[i] && self.last_night[i] - night_i >= self.p.hrg_end && self.deadline_aware(i) && self.req_open(i)
     }
 
     /// Required stake x P(success) of a t-second attempt whose predicted factor / threshold is `raw`. Hard
-    /// targets: the measured success curve, an optional gate, and the whole stake in a good window (near
+    /// targets: the fitted success curve, an optional gate, and the whole stake in a good window (near
     /// transit, dark, raw(T_max) >= 1.25, i.e. P ~0.85: deferring it only waits for a rarer night).
     pub(super) fn req_attempt(&self, i: usize, raw: f64, t: f64, night_i: i64, good: bool) -> f64 {
         if !self.hrg_on(i, night_i) {
@@ -845,7 +844,7 @@ impl Planner {
         ((if f >= DONE_FACTOR { 0.0 } else { self.weight[i] * (1.0 - f * f) }) + request) * damp
     }
 
-    /// Required target not yet done: on its certain lower bound in deadline-aware mode, else (stock) on the estimate.
+    /// Required target not yet done: on its certain lower bound in deadline-aware mode, else on the estimate.
     pub(super) fn req_open(&self, i: usize) -> bool {
         self.required[i] && (if self.deadline_aware(i) { self.req_lo[i] } else { self.factor[i] } < self.req_thr)
     }
@@ -857,8 +856,7 @@ impl Planner {
 
     /// P(factor >= threshold) of an exposure of `t` seconds whose predicted factor / threshold is `raw`.
     /// Lognormal prediction error whose spread grows with the exposure (the weather drifts slot by slot):
-    /// sd = sqrt(sd0^2 + (sd1 * t / 3600)^2); fitted to required hits of stock runs (fA-s3, fB-s3: q10..q90 of
-    /// ln(obtained / predicted) is about +-0.15 below 900 s and -0.4..+0.18 above 2000 s).
+    /// sd = sqrt(sd0^2 + (sd1 * t / 3600)^2) (empirical, fitted to required hits in simulated runs).
     pub(super) fn p_now(&self, raw: f64, t: f64) -> f64 {
         let sd = (self.p.req_sigma_now.powi(2) + (self.p.req_sigma_drift * t / 3600.0).powi(2)).sqrt().max(1e-3);
         normal_cdf(raw.max(1e-12).ln() / sd)

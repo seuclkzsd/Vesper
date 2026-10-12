@@ -79,8 +79,8 @@ struct Knobs {
     llm_wall_share: f64, // all LLM waits of a run together: at most this share of the wall-clock cap
     duty_timeout: f64,   // longest a background duty-log question may run (long answers; no decision waits)
     duty_chars: usize,   // decoded text of one duty-log question, at most (bytes; long messages go in chunks)
-    fixed_level: i64,      // development only: pin the search level (deterministic runs)
-    wide: bool,            // level 0 starts with the wide search (0: the narrow search only, the r1 ladder)
+    fixed_level: i64,      // testing only: pin the search level (deterministic runs)
+    wide: bool,            // level 0 starts with the wide search (0: the narrow search only, the single-breadth ladder)
     xtier: bool,           // the xwide breadth between wide and mid (0: wide, mid, narrow)
 }
 
@@ -341,7 +341,7 @@ impl ObserverAgent {
         // out of the real-time estimate as well
         let cpu = process_time() - cpu_started;
         let wall = started.elapsed().as_secs_f64() - (self.model_wait - model_before);
-        // the charge is min(turn, CPU of the container): with two search threads that is the turn (notes/23)
+        // the charge is min(turn, CPU of the container): with two search threads that is the turn
         let cpu = if self.planner.threads() > 1 { cpu.min(wall) } else { cpu };
         if action.get("action").and_then(Value::as_str) == Some("observe") && tier < 7 {
             let xtier = self.k.xtier;
@@ -349,8 +349,8 @@ impl ObserverAgent {
                 let c = ema[tier];
                 ema[tier] = if c == 0.0 { cost } else { 0.9 * c + 0.1 * cost };
                 for k in tier + 1..7 {
-                    // cheaper tiers not measured yet: mid about 0.6 of wide (xwide 0.8 of wide, mid 0.75 of xwide),
-                    // narrow about 0.6 of mid (measured 0.5-0.9), each lower level a third of the one above
+                    // cheaper tiers not measured yet (empirical ratios): mid about 0.6 of wide (xwide 0.8 of wide,
+                    // mid 0.75 of xwide), narrow about 0.6 of mid, each lower level a third of the one above
                     if k == 1 && !xtier {
                         continue;
                     }
@@ -548,7 +548,7 @@ impl ObserverAgent {
             && self.planner.idle_card()
             && self.planner.idle_ready(now)
         {
-            // idle upside (notes/41): a fault confirmation keeps every exposure inside one slot, and on a time-rich
+            // idle card: a fault confirmation keeps every exposure inside one slot, and on a time-rich
             // card with nothing left at that length the run would wait for months without a reading to clear it;
             // a full-length exposure is both the confirmation and the only useful work left
             let cap = self.planner.max_t.take();
@@ -573,7 +573,7 @@ impl ObserverAgent {
     fn to_next_slot(&self, now: f64, night_start: f64) -> i64 {
         let slot = if self.planner.slot_seconds > 0 { self.planner.slot_seconds as f64 } else { 900.0 };
         let into = skymath::pmod(now - night_start, slot);
-        // a wait's duration_seconds must lie in the card's exposure range (60-3600 s on every card so far)
+        // a wait's duration_seconds must lie in the card's exposure range (60-3600 s on the known cards)
         self.clamp_wait((slot - into).min(3600.0).max(60.0))
     }
 

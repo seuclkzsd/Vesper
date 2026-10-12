@@ -240,7 +240,7 @@ impl Duty {
 
     /// Closed (compass azimuth, below altitude) pairs for exposures starting now (closures within 15 min). A
     /// closure with no altitude of its own (85 deg default) closes its sector up to the zenith: the engine tests
-    /// every target's own azimuth, and the zdl truth closes wind and thick cloud to 90 deg.
+    /// every target's own azimuth, and its wind and thick-cloud closures reach 90 deg.
     pub fn closed(&self, now: f64) -> Vec<(f64, f64)> {
         let mut out: Vec<(f64, f64)> = Vec::new();
         for c in self.closures.iter().filter(|c| c.0 <= now && c.1 < now + 900.0 && now < c.2) {

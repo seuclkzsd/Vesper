@@ -8,7 +8,7 @@
 //! | week plan & review | `week_plan.rs` | a new 7-day forecast arrives (spread over the season to fit the quota) | per-night plan for the forecast week (bad night for faint required targets, sectors to avoid) and the week's time price (lambda scale) |
 //! | fault judge | `fault_judge.rs` | the fault rule is about to report an unannounced instrument fault | report now, or after one confirmation exposure inside the slot |
 //! | request triage | `request_triage.rs` | new observation requests appear | each request's priority (scales its planning value) |
-//! | duty log | `duty_log.rs` (rule decoder: `crate::dutylog`) | new duty-log messages in request reasons (cards with a staff chat only): the lines the rule decoder is not sure of, in chunks | duty-log facts the rules missed (schema dutylog/schema.md): fault times to report (free false reports only), times ruled out, stops (wait), closures, terrain tops |
+//! | duty log | `duty_log.rs` (rule decoder: `crate::dutylog`) | new duty-log messages in request reasons (cards with a staff chat only): the lines the rule decoder is not sure of, in chunks | duty-log facts the rules missed (in the rule decoder's fact schema): fault times to report (free false reports only), times ruled out, stops (wait), closures, terrain tops |
 //!
 //! `client.rs` holds the HTTP client with the per-run call budget, the single retry, the rate-limit backoff and the
 //! circuit breakers.

@@ -1,6 +1,6 @@
 //! Duty log ("值班日志"): the staff chat in zero-reward observation_request reasons (A1-D1 style cards) decoded into
-//! DutyFacts (schema: dutylog/schema.md, notes/28) and resolved into a card view: guide-camera fault schedule, dead
-//! time (flat tests + stops), closures, terrain. Deterministic; only messages with CJK text should be fed in.
+//! DutyFacts and resolved into a card view: guide-camera fault schedule, dead time (flat tests + stops), closures,
+//! terrain. Deterministic; only messages with CJK text should be fed in.
 #![allow(dead_code)]
 macro_rules! re {
     ($p:expr) => {{
@@ -105,8 +105,8 @@ pub struct Fact {
 }
 
 impl Fact {
-    /// This fact in the schema form of dutylog/schema.md (UTC times; the fields the LLM duty-log stage uses: anchors
-    /// for its relative times, times ruled out, lines it reviews), `"certain": false` = a guess; None = chatter.
+    /// This fact in the duty-log JSON schema form (UTC times; the fields the LLM duty-log stage uses: anchors for its
+    /// relative times, times ruled out, lines it reviews), `"certain": false` = a guess; None = chatter.
     pub fn schema(&self) -> Option<serde_json::Value> {
         use serde_json::json;
         use DutyFact::*;

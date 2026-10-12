@@ -4,14 +4,12 @@
 **starwing** submitted to the [GOSIM 2026 Agentic Observer Hackathon](https://create.gosim.org/survey26/) (survey26,
 `participant-agent-protocol-v4`).
 
-[中文说明见 README.zh.md](README.zh.md)
-
 *Vesper* is the evening star, the first light in the western sky at dusk. The name fits the agent's most important
 finding: on the A-type cards, the early-season dusk band in the west (RA 300–360°) decides who wins. Its faint QSOs
 are only observable for the first few weeks of the season. They have to be shot early, or they are lost.
 
-This repository contains exactly the code of the submitted final version (platform version `222b7453`). Building it
-reproduces the submitted binary byte for byte (see [Reproduce the submission](#reproduce-the-submission)).
+This repository contains the code of the submitted final version (platform version `222b7453`). Only comments were
+edited for publication; the code itself is unchanged (see [Reproduce the submission](#reproduce-the-submission)).
 
 ## What the agent does
 
@@ -155,19 +153,21 @@ binary as `bin/rust-pro`, with an `observer.project.json` of:
 ```bash
 git clone <repository URL> Vesper && cd Vesper
 CC_x86_64_unknown_linux_musl=gcc cargo build --release --locked --target x86_64-unknown-linux-musl
-sha256sum target/x86_64-unknown-linux-musl/release/rust-pro
-# e4afbcfa3d9315003b0e948a6ff0ef87c7afe259dfeb7e1b33f490be9da51349
-# = bin/rust-pro of the submitted ZIP (rustc 1.97.0, target x86_64-unknown-linux-musl)
+PRO_PACE_SAFETY=2.0 PRO_FOV=0.3 target/x86_64-unknown-linux-musl/release/rust-pro   # settings of the submission
 ```
 
-Run it with `PRO_PACE_SAFETY=2.0 PRO_FOV=0.3`, as in the submission.
+The submitted binary (`bin/rust-pro` in the submission ZIP, sha256
+`e4afbcfa3d9315003b0e948a6ff0ef87c7afe259dfeb7e1b33f490be9da51349`, rustc 1.97.0) was built from this code before its
+comments were edited for publication. Comments do not change what the agent does, but they shift the line numbers that
+Rust embeds in panic locations. A build of this repository therefore makes the same decisions as the submitted binary,
+but it is not byte-identical to it.
 
 ## Scope of this repository
 
 This repository holds the submitted version only. The development tooling is not included: unit tests, a local LLM
 stub, a faster byte-identical referee, the cluster evaluation harness, the synthetic card generator, the duty-log gold
 set, and the experiment notes. The source still declares `#[cfg(test)]` modules under `tests/unit/`, exactly as
-submitted, so `cargo test` does not build here. Comments such as `notes/23` refer to those internal notes.
+submitted, so `cargo test` does not build here.
 
 ## License
 

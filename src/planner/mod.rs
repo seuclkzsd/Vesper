@@ -1,7 +1,7 @@
 //! Planner of the pro agent: pointing, fibre assignment, duration and program in one search.
 //! Files: mod.rs (constants, state, catalogue precomputation, messages, sky and direction helpers), values.rs
 //! (planning values of required targets and observation requests), search.rs (`Planner::plan` and its
-//! per-decision search), learn.rs (learning from results). Started as a port of `python-pro/planner.py`.
+//! per-decision search), learn.rs (learning from results). Derived from the organizers' example planner (see NOTICE).
 //!
 //! Per decision (plan):
 //! 1. Visible targets with something left to gain are ranked with a cheap proxy; the best POOL go on.
@@ -142,7 +142,7 @@ struct Params {
     req_p_lo: f64,
     req_p_hi: f64,
     request_mult: f64,
-    req_pb: bool,       // request value: Poisson-binomial over the targets' feasibility (else stock reward / remaining)
+    req_pb: bool,       // request value: Poisson-binomial over the targets' feasibility (else reward / remaining)
     req_window: bool,   // a request counts only exposures wholly inside its [issued, deadline] window
     req_anchors: usize, // every decision also centres fields on up to this many open request targets
     req_rate_excl: bool, // the time price (rate_ema) ignores request rewards
@@ -165,15 +165,15 @@ struct Params {
     fillers: bool,       // empty fibres may take finished targets short only of their program multiplier
     t_breaks: bool,      // re-choose the duration among saturation times and slot boundaries on the final pointing
     t_sat_margin: f64,   // a saturation-time candidate is the time to reach this factor (estimated quality)
-    resync_ledger: bool, // state_resync: recompute factors from the own per-exposure ledger (else stock estimate)
-    lambda_share: bool,  // rank anchors with lambda / n_fibers (else / 16 as in the stock 4 x 4 code)
+    resync_ledger: bool, // state_resync: factors from the exposure ledger (else best score / weight / top multiplier)
+    lambda_share: bool,  // rank anchors with lambda / n_fibers (else / 16, the reference 4 x 4 grid)
     odd_ring: bool,      // odd grids: density anchors also on the centre fibre's 4 neighbours
-    // season supply/demand urgency (urgency.rs, notes/08-urgency.md, notes/11)
+    // season supply/demand urgency (urgency.rs)
     urg_band: bool,      // per-cell supply/demand factor clip((u_c / u_mean)^alpha, lo, hi)
     urg_alpha: f64,
     urg_lo: f64,
     urg_hi: f64,
-    urg_cap: f64,        // cap of cell factor x stock last-chance term (stock maximum 1 + urgency = 2.5)
+    urg_cap: f64,        // cap of cell/LP factor x base 1 + urgency / nights_left (the base alone: uncapped)
     urg_rel_good: f64,   // good altitude: airmass term within this factor of the cell's best (transit)
     urg_cell_deg: f64,
     urg_scarcity: bool,  // scale alpha with the card's time scarcity, like the time price
@@ -183,7 +183,7 @@ struct Params {
     urg_in_window: bool, // a cell's boost only while the target is at a good altitude (discounts always)
     urg_econ: bool,      // demand only from targets the remaining supply can afford (market-clearing price)
     // --- deadline-aware required value (penalty x P_now x (1 - P_future)) ---
-    req_deadline: bool,     // 1: required bonus from the target's remaining calendar; 0: stock bonus and discounts
+    req_deadline: bool,     // 1: required bonus from the target's remaining calendar; 0: REQUIRED_BONUS and discounts
     req_kappa: f64,         // P_future never above this (competition, correlated weather, faults)
     req_night_weight: f64,  // weight of one future night in P_future (nights are correlated, phi_night ~0.8)
     req_sigma_now: f64,     // sd of ln(g) predicted for a short exposure starting now
@@ -193,37 +193,37 @@ struct Params {
     req_prior_nights: f64,  // weight of the prior, in nights
     req_p_open: f64,        // chance a future night is open at the target's best window
     req_p_open_bad: f64,    // ... on a night forecast with bad weather over the whole sky
-    req_stake_mult: f64,    // stake = penalty x this; 0.8 (r9/tune5, notes/41; 1.1 r6/tune4; 1.6 = stock bonus level, 80 for
-                            // a 50 penalty): a few more misses, more science on every card family
+    req_stake_mult: f64,    // stake = penalty x this (1.6 matches the fixed REQUIRED_BONUS, 80 for a 50 penalty);
+                            // a lower stake accepts a few more misses for more science
     req_top_nights: usize,  // P_future counts only this many best later nights (0: all)
-    req_close: [f64; 4],    // early-closing band (notes/43): [g, frac, xmax, ra]: an open required target whose last good night
+    req_close: [f64; 4],    // early-closing band: [g, frac, xmax, ra]: an open required target whose last good night
                             // (p_k >= 0.5) is before frac x the season and whose xbest < xmax has P_future scaled by
                             // min(1, later good nights / (g x open such targets within +-ra deg of RA)); g 0: off
-    idle_up: [f64; 2],      // idle upside (notes/41): [k, scarcity below which it applies]; k 0 = off
+    idle_up: [f64; 2],      // idle upside: [k, scarcity below which it applies]; k 0 = off
     idle_hours: f64,        // ... only after the plain search found nothing for this long
     idle_used: f64,         // ... and once the season LP uses under this share of the remaining capacity
-    req_futile: (i64, f64), // hard required futility guard (notes/41): after n long attempts whose measured factor,
+    req_futile: (i64, f64), // hard required futility guard: after n long attempts whose measured factor,
                             // scaled to the longest exposure, stayed below x times the threshold, the stake decays
                             // 0.8 per further such attempt (n 0: off)
-    // --- hard required targets (notes/19): t_half at the typical sky > hrg_frac x longest exposure ---
+    // --- hard required targets: t_half at the typical sky > hrg_frac x longest exposure ---
     hrg: bool,
     hrg_frac: f64,
-    hrg_early: [f64; 2], // a target whose window closes before this share of the season (the western band at dusk,
-                         // notes/43) is hard already at t_half > hrg_early[0] x longest exposure (0 or >= hrg_frac: off)
+    hrg_early: [f64; 2], // a target whose window closes before this share of the season (the western band at dusk) is
+                         // hard already at t_half > hrg_early[0] x longest exposure (0 or >= hrg_frac: off)
     hrg_cal: [f64; 4],  // success of a long attempt: (1 - tail T/3600) Phi((ln raw - bias T/3600) / sd(T)), sd^2 = sd0^2 + (sd1 T/3600)^2
-    hrg_end: i64,       // the last nights of a target's window keep the v5 value (any attempt may be the last)
+    hrg_end: i64,       // a target's last nights keep the plain deadline-aware value (any attempt may be the last)
     hrg_good: [f64; 4], // full stake when tonight's quality is above this z of the nightly spread (<= -9: any measured night), |HA mid| < h, Moon factor >=, raw(T_max) >=
     hrg_anchors: usize,
     terrain_learn: bool,    // terrain sectors: P(clear) learnt from own hits (terrain.rs) instead of the hard cut
-    // --- field geometry (notes/07 #1, #7) ---
-    near_cover: bool,    // each anchor's neighbourhood covers every field it is placed in (else the stock radius)
-    margin_abs: f64,     // edge margin (deg) on a card without pointing misses or once the offset is learned; 0 = stock
+    // --- field geometry ---
+    near_cover: bool,    // each anchor's neighbourhood covers every field it is placed in (else NEIGHBOUR_RADIUS_DEG)
+    margin_abs: f64,     // edge margin (deg) without pointing misses or once the offset is learned; <= 0: default
     scan_k: [usize; 2],  // best distinct pointings given an exact cell-edge shift scan, at search levels 0 and 1
     scan_iters: usize,   // scan rounds per pointing at search level 0 (each from the last accepted shift); 1 above
-    // level 0 xwide and mid (the pace's steps down; mid = the v6 wide search): anchors, scan_k, scan_iters, refine_rounds, pool
+    // level 0 xwide and mid (the pace's steps down): anchors, scan_k, scan_iters, refine_rounds, pool
     xw: [usize; 5],
     mid: [usize; 5],
-    // level 0 narrow (the pace's step before level 1; the r1 search): anchors, scan pointings, 1 scan round
+    // level 0 narrow (the pace's step before level 1): anchors, scan pointings, 1 scan round
     n_anchors_narrow: usize,
     scan_k_narrow: usize,
     seeds: usize,        // mean-shift seeds (level 0): field-sized kernel from the densest patches / best anchors
@@ -231,28 +231,28 @@ struct Params {
     rate_excl_req: bool, // the time price also leaves out required values (paid once, like request rewards)
     lam_now: f64,        // the price follows min(slow, fast EMA of this weight) achievable rate (0: slow only)
     sat_bound: bool,     // no fresh quality sample: quality level >= the bound saturated hits show
-    // --- complete-or-skip (notes/15) ---
+    // --- complete-or-skip ---
     cs_final: usize,     // re-time this many scanned pointings at saturation times (1: the winner only)
     cs_pmax: f64,        // P_revisit ceiling (0: off)
     cs_eta: f64,         // useful share of the exposed fibre-seconds
     cs_beta: f64,        // partial gain x (1 - P_revisit (1 - reach^beta))
-    fov: f64,            // fibre option cost weight (search.rs option_cost, notes/43-night-lossA; 0: off)
+    fov: f64,            // fibre option cost weight (search.rs option_cost; 0: off)
     fov_beta: f64,       // ... used share of the surplus: 0 min(S, V reach) / S, else S reach^beta
-    // --- tiling (tiling.rs, notes/15) ---
+    // --- tiling (tiling.rs) ---
     tile_passes: usize,  // offset passes of fixed field centres (0: no tiles)
     tile_k: usize,       // best tiles offered to the search per decision (level 0)
     tile_spacing: f64,   // centre spacing / field side
     timing: f64,         // hour-angle preference exponent (0: off; tiling.rs timing_factor)
-    // --- research only (notes/18): PRO_PATH_JITTER=<seed> moves every candidate's net by up to +-eps x its gain, so
+    // --- research only: PRO_PATH_JITTER=<seed> moves every candidate's net by up to +-eps x its gain, so
     // near-ties (within eps) fall the other way and the run takes another, equally intended path; 0 = off (exact)
     path_jitter: u64,
-    threads: usize,      // search workers per decision (notes/23): the platform gives 2 CPUs and charges min(turn, CPU)
+    threads: usize,      // search workers per decision: the platform gives 2 CPUs and charges min(turn, CPU)
     path_jitter_eps: f64,
 }
 
-/// What the stock constants scale with on a card that is not the reference 4 x 4 / 0.4 deg2 layout.
-/// Every factor is exactly 1.0 on the reference layout and the default score config, so the stock
-/// numbers are reproduced there bit for bit.
+/// What the default constants scale with on a card that is not the reference 4 x 4 / 0.4 deg2 layout.
+/// Every factor is exactly 1.0 on the reference layout and the default score config, so the defaults
+/// apply there unscaled.
 struct Geo {
     fov_scale: f64,   // field side / reference field side
     glass_scale: f64, // fibre side / reference fibre side
@@ -265,10 +265,10 @@ impl Params {
     /// for the reference layout and scaled with the card's field / fibre size; `PRO_REQUIRED_BONUS` is given for
     /// a 50-point required penalty and scaled with the card's penalty.
     fn load(geo: &Geo) -> Params {
-        // PRO_GEO_SCALE=0: the stock absolute distances on every layout (for A/B tests)
+        // PRO_GEO_SCALE=0: the reference absolute distances on every layout
         let geo_on = env_i("GEO_SCALE", 1) != 0;
         // the edge margin guards against pointing errors, an absolute angle: shrink it with small fibres
-        // (0.02 deg would cost 30 % of a 0.245 deg fibre), never widen it beyond the stock value
+        // (0.02 deg would cost 30 % of a 0.245 deg fibre), never widen it beyond the reference value
         let margin_scale = geo.glass_scale.min(1.0);
         let geo = &Geo {
             fov_scale: if geo_on { geo.fov_scale } else { 1.0 },
@@ -570,7 +570,7 @@ pub struct Planner {
     vcache: Option<Vec<f64>>,
     vdirty: HashSet<usize>,
     attempts: Vec<i64>,
-    /// Long attempts on a hard required target that stayed well below the threshold (notes/41 futility guard).
+    /// Long attempts on a hard required target that stayed well below the threshold (Params::req_futile).
     futile: Vec<i64>,
     active: Vec<usize>,
     alt_a: Vec<f64>,
@@ -624,8 +624,8 @@ pub struct Planner {
     pub reading: Option<Reading>,
     /// Longest duration allowed for the next exposure (a slot-contained confirmation exposure), set by main.rs.
     pub max_t: Option<f64>,
-    /// No idle upside (notes/41) while a duty log is being followed: its reports need the short reaction time
-    /// of slot-long waits (zdl-D1-s1: one correct report fewer, -0.15 %).
+    /// No idle upside while a duty log is being followed: its reports need the short reaction time of
+    /// slot-long waits.
     pub idle_off: bool,
     /// Night of the observe in flight, the ALL-sky weather it was planned under, and whether that weather (or a
     /// site closure) changed while it ran (then its hits say little about the band level now).
@@ -680,7 +680,7 @@ pub struct Planner {
     /// The engine's observe_action_index of the coming decision, and of the observe in flight.
     pub observe_index: Option<i64>,
     pending_index: Option<i64>,
-    /// Season supply/demand urgency per sky cell (None: stock urgency).
+    /// Season supply/demand urgency per sky cell (None: the base last-chance urgency alone).
     urg: Option<Urgency>,
     /// Catalogue targets per fibre patrol area (targets per deg2 of footprint x fibre area); gates the urgency.
     fibre_density: f64,
@@ -705,7 +705,7 @@ pub struct Planner {
     /// readings is certain. A required target counts as done only on this bound.
     req_lo: Vec<f64>,
     req_night: i64,
-    /// Hard required targets (notes/19), each row's best ln(factor / threshold) at quality 1, and the nightly
+    /// Hard required targets, each row's best ln(factor / threshold) at quality 1, and the nightly
     /// quality's ln-mean and sd (update_required_outlook).
     req_hard: Vec<bool>,
     req_xbest: Vec<f64>,
@@ -731,7 +731,7 @@ fn push_bounded<T>(deque: &mut VecDeque<T>, item: T, maxlen: usize) {
     deque.push_back(item);
 }
 
-/// The stock exposure grid restricted to the card's [min, max] exposure range (plus its limits; a longer maximum
+/// The base exposure grid `stock` restricted to the card's [min, max] exposure range (plus its limits; a longer maximum
 /// adds longer steps).
 fn duration_grid(stock: &[f64], min_exposure: f64, max_exposure: f64) -> Vec<f64> {
     let stock_max = DURATIONS[DURATIONS.len() - 1];
@@ -914,7 +914,7 @@ impl Planner {
             p.near_cover, p.margin_abs, p.scan_k, p.seeds, p.seed_iters
         ));
         let mut density_order: Vec<usize> = (0..n).collect();
-        // Python's stable sort by -w*flux
+        // stable sort by -w*flux (ties keep catalogue order)
         density_order.sort_by(|&a, &b| (-weight[a] * flux[a]).partial_cmp(&(-weight[b] * flux[b])).unwrap_or(std::cmp::Ordering::Equal));
         let offset_step = grid.pitch / 12.0;
         let mut planner = Planner {
@@ -1227,13 +1227,13 @@ impl Planner {
         clear
     }
 
-    /// Inside the stock worst case of a published terrain sector (below 50 deg within 60 deg of its compass point)?
+    /// Inside the assumed worst case of a published terrain sector (below 50 deg within 60 deg of its compass point)?
     fn terrain_blocked(&self, alt: f64, az: f64) -> bool {
         alt < 50.0 && self.terrain.iter().filter_map(|d| direction_az(d)).any(|daz| az_distance(az, daz) <= 60.0)
     }
 
     /// Chance of a clear line of sight past the published terrain sectors: P(clear) learnt from the own hits
-    /// (terrain.rs; below 0.05 counts as blocked), or the stock hard cut (PRO_TERRAIN_LEARN=0).
+    /// (terrain.rs; below 0.05 counts as blocked), or the fixed hard cut (PRO_TERRAIN_LEARN=0).
     fn terrain_factor(&self, alt: f64, az: f64) -> f64 {
         if self.p.terrain_learn {
             let clear = self.terrain_clear(alt, az);
@@ -1293,8 +1293,8 @@ impl Planner {
     }
 
     /// Distance (deg) target i must keep from its fibre's glass edge: MARGIN_ABS (float noise) on an exact pointing;
-    /// on a Hard-mode card the stock margin until the offset is learned, then max(MARGIN_ABS, its uncertainty).
-    /// Never wider than the stock margin; a target that missed keeps the stock per-target widening.
+    /// on a Hard-mode card the default margin until the offset is learned, then max(MARGIN_ABS, its uncertainty).
+    /// Never wider than the default margin; a target that missed keeps the default per-target widening.
     fn edge_margin(&self, i: usize) -> f64 {
         let stock = self.p.edge_margin_deg * (0.5 + 1.5 * self.misses[i] as f64);
         if self.p.margin_abs <= 0.0 {

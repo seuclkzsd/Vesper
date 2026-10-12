@@ -20,7 +20,7 @@
 //!   would otherwise never start on any of them.
 //! * A hopeless request (fewer feasible targets than needed) is worth ~0 everywhere: no time is spent on it.
 //!
-//! In the usual case (all targets feasible) the value is ~R / r, the stock planner's per-target split.
+//! In the usual case (all targets feasible) the value is ~R / r, an even per-target split.
 
 /// One request a target belongs to: its planning value and the window an exposure must lie in to count.
 #[derive(Clone, Debug, PartialEq)]

@@ -1,7 +1,7 @@
-//! Global allocator: musl's malloc serialises every thread on one lock, so the two search threads (notes/23)
-//! would queue on the many small vectors of a candidate evaluation. A thread that turns its cache on keeps up to
-//! KEEP freed blocks per power-of-two size class (16 B .. 4 KiB) and hands them out again; everything else, and
-//! every other thread, uses the system allocator. A worker turns its cache off (returning the blocks) before it ends.
+//! Global allocator: musl's malloc serialises every thread on one lock, so the two search threads would queue
+//! on the many small vectors of a candidate evaluation. A thread that turns its cache on keeps up to KEEP freed
+//! blocks per power-of-two size class (16 B .. 4 KiB) and hands them out again; everything else, and every other
+//! thread, uses the system allocator. A worker turns its cache off (returning the blocks) before it ends.
 
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::cell::UnsafeCell;

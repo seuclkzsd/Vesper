@@ -1,7 +1,7 @@
 //! Sky geometry for the agent: the same formulas the engine uses, so planned hits are real hits.
 //!
 //! All angles in degrees. Azimuth: 0 = north, 90 = east. Times are UTC seconds since the Unix epoch
-//! (f64). Port of `python-pro/skymath.py`.
+//! (f64).
 
 use serde_json::Value;
 
@@ -232,7 +232,7 @@ pub fn shift_altaz(alt_deg: f64, az_deg: f64, d_north: f64, d_east: f64) -> (f64
     (z.clamp(-1.0, 1.0).asin().to_degrees(), pmod(y.atan2(x).to_degrees(), 360.0))
 }
 
-/// Reference layout the stock constants were tuned for: 4 x 4 fibres of 0.4 deg2, no gap.
+/// Reference layout the planner's constants are set for: 4 x 4 fibres of 0.4 deg2, no gap.
 pub const REF_GLASS_DEG: f64 = 0.632_455_532_033_675_9; // sqrt(0.4)
 
 /// n x n square fibres; fibre 0 bottom-left, rows along +alt, columns along +az.
@@ -240,7 +240,7 @@ pub const REF_GLASS_DEG: f64 = 0.632_455_532_033_675_9; // sqrt(0.4)
 /// Geometry follows the engine's `challenge/v4_fiber_map.FiberGrid`: side = isqrt(n_fibers), glass =
 /// sqrt(fiber_area_deg2), pitch = glass + gap_deg, fov = side * pitch, and with gap 0 every in-field point is on
 /// glass. The published (1e-6-rounded) `glass_side_deg` / `pitch_deg` / `fov_side_deg` are used when they agree
-/// with those values (as in the stock agent); otherwise the values derived from the area win.
+/// with those values; otherwise the values derived from the area win.
 #[derive(Clone)]
 pub struct FiberGrid {
     pub side: usize,
@@ -278,8 +278,8 @@ impl FiberGrid {
             let glass = area.sqrt();
             let pitch = glass + gap;
             let fov = side as f64 * pitch;
-            // the published values are the same numbers rounded to 1e-6 deg; the stock agent used them (and a
-            // different last digit moves near-zenith pointings), so keep them when they agree with the engine
+            // the published values are the same numbers rounded to 1e-6 deg (a different last digit moves
+            // near-zenith pointings): keep them when they agree with the engine
             let close = |key: &str, exact: f64| {
                 let v = f(key);
                 if v > 0.0 && (v - exact).abs() <= 2e-6 * exact.max(1.0) { v } else { exact }
@@ -370,7 +370,7 @@ impl FiberGrid {
     }
 }
 
-/// 1.0 when x is within 1e-6 of 1 (so the reference layout reproduces the stock constants bit for bit).
+/// 1.0 when x is within 1e-6 of 1 (so on the reference layout the scaled constants equal the base ones bit for bit).
 fn snap_one(x: f64) -> f64 {
     if (x - 1.0).abs() < 1e-6 {
         1.0

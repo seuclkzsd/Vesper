@@ -1,6 +1,6 @@
 //! OpenAI-compatible chat client of the LLM stages, built to protect a shared quota.
 //!
-//! Configuration (environment, or a local `.env` in the working directory that is never packed):
+//! Configuration (environment, or a local `.env` in the working directory for local runs):
 //!   OPENAI_API_KEY    required (KIMI_API_KEY is accepted as an alternate name)
 //!   OPENAI_BASE_URL   default https://api.kimi.com/coding/v1 (Kimi Coding Plan; outside mainland China
 //!                     use https://api.kimi.ai/coding/v1). On the platform this is injected automatically.

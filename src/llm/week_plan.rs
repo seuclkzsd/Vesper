@@ -15,10 +15,10 @@
 //! night the rule marks bad, so the model confirms or clears the rule's bad nights; `avoid` may only name
 //! sectors the forecast names for that night; `lambda_scale` moves at most LAMBDA_STEP per plan inside
 //! [LAMBDA_MIN, LAMBDA_MAX] (a 2 % price change; the cost of a mis-set price grows with its square) and relaxes
-//! halfway back to 1 at every forecast that is not planned with the model. The plan is applied at fixed points: lambda from the night the plan is
-//! made, the per-night advice at each night start of the forecast week. Missing or invalid fields, and any
-//! failure, leave the rule plan (bad night = ALL-sky rain/storm/overcast/haze forecast, no extra sectors,
-//! lambda unchanged).
+//! halfway back to 1 at every forecast that is not planned with the model. The plan is applied at fixed points:
+//! lambda from the night the plan is made, the per-night advice at each night start of the forecast week. Missing
+//! or invalid fields, and any failure, leave the rule plan (bad night = ALL-sky rain/storm/overcast/haze forecast,
+//! no extra sectors, lambda unchanged).
 //!
 //! Quota: forecasts come every 7 days (52 on a one-year card); the model plans every `stride`-th forecast so
 //! that the week plans of a whole season fit the stage's share of the call budget.

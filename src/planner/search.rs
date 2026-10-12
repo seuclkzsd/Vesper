@@ -34,7 +34,7 @@ impl Planner {
         let lst_later = lst + 1800.0 * SIDEREAL_DEG_PER_SECOND;
         let moon = Moon::new(now + 600.0, lst, self.lat, self.lunar_model);
         let scale = self.scale * self.p.plan_factor_safety;
-        // the fault reader's band level (stock saturated-hit fit, read_throughput)
+        // the fault reader's band level (saturated-hit fit, read_throughput)
         self.fit_band_level(hours);
         // band level now: drift since the last exposure, ALL-sky weather that started or ended
         self.bandf.predict(hours, night_index);
@@ -58,7 +58,7 @@ impl Planner {
         let level = self.fast_level;
         let n = self.ids.len();
         let min_up_deg = min_up * SIDEREAL_DEG_PER_SECOND;
-        // level 0 breadths (pace): 0 = wide (y), 1 = xwide (*_X), 2 = mid (*_MID, the v6 wide search), 3 = narrow
+        // level 0 breadths (pace): 0 = wide (y), 1 = xwide (*_X), 2 = mid (*_MID), 3 = narrow
         let (breadth, mid, xw) = (self.breadth.min(3), self.p.mid, self.p.xw);
         let pool_size = match (level, breadth) {
             (0, 0) => self.p.pool,
@@ -176,7 +176,7 @@ impl Planner {
 
         let pool_ranked: Vec<(f64, usize)> = if proxy.len() > pool_size {
             // (value, index) pairs are all distinct, so selecting the top pool_size first and sorting only those
-            // gives exactly the stock full sort's head (cheaper with tens of thousands of visible targets)
+            // gives exactly a full sort's head (cheaper with tens of thousands of visible targets)
             let mut sorted = proxy;
             let desc = |a: &(f64, usize), b: &(f64, usize)| b.partial_cmp(a).unwrap_or(std::cmp::Ordering::Equal);
             if pool_size > 0 && pool_size < sorted.len() {
@@ -257,16 +257,16 @@ impl Planner {
         let t_mid = durations[durations.len() / 2];
         // Time cannot be saved for later: its price is never above what the current conditions earn (fast rate).
         // At the season's typical rate a cloudy or degraded hour finds no exposure worth its time, and the search
-        // falls to the shortest one, whose partial gains are mostly superseded later (notes/15).
+        // falls to the shortest one, whose partial gains are mostly superseded later.
         let rate_ref = if self.p.lam_now > 0.0 && self.rate_now > 0.0 { self.rate_ema.min(self.rate_now) } else { self.rate_ema };
         let mut lam = self.lambda_frac * rate_ref * self.lambda_scale;
         if let Some(lp) = self.slp.as_ref().filter(|lp| lp.cap_w > 0.0 && lp.price_now() > 0.0 && lam > 0.0) {
-            // season LP (notes/15): the EMA follows the best rate on offer, 2-3x the season's marginal price on
-            // sparse catalogues (and far above it early in any season); the LP price of this node caps it there.
-            // Not on dense ones: a low price makes long exposures that leave most fibres saturated (fC-s5 -5 %).
+            // season LP: the EMA follows the best rate on offer, well above the season's marginal price on sparse
+            // catalogues (and far above it early in any season); the LP price of this node caps it there.
+            // Not on dense ones: a low price makes long exposures that leave most fibres saturated.
             // Where time is scarce (the season serves well under the demand) the flat LP price undercuts the rate
-            // time earns all season long: there the cap stops at floor x the EMA price (notes/19). Where the
-            // season serves (almost) everything, the floor only moves gains in time (fD, gX6), so none.
+            // time earns all season long: there the cap stops at floor x the EMA price. Where the season serves
+            // (almost) everything, the floor only moves gains in time, so none.
             let scarce = ((lp.cfg.floor_served - lp.served0) / 0.2).clamp(0.0, 1.0);
             let capped = lam.min((lp.cfg.lam * lp.price_now() * self.lambda_scale).max(lp.cfg.floor * scarce * lam));
             lam = lam.powf(1.0 - lp.cap_w) * capped.powf(lp.cap_w);
@@ -288,7 +288,7 @@ impl Planner {
             lam = 0.0;
             ranked = pool.iter().map(|&i| (search.quick(i, t_long).0, i)).filter(|r| r.0 > 0.0).collect();
         }
-        // idle upside (notes/41): on a time-rich card the season's work can run out months early, and the telescope
+        // idle upside: on a time-rich card the season's work can run out months early, and the telescope
         // then waits for whole nights while hundreds of faint targets still sit below their cap. Time is free there,
         // and only an exposure measures tonight's sky: plan as if tonight were a good night (scale x exp(k sd) of
         // the nightly quality), so the best faint targets are re-taken whenever the sky turns out better than before.
@@ -344,7 +344,7 @@ impl Planner {
             n_request_anchors = extra.len().min(self.p.req_anchors);
             anchors.extend(extra.iter().take(n_request_anchors).map(|e| e.1));
         }
-        // hard required targets in a good window are anchors too (notes/19), largest stake first
+        // hard required targets in a good window are anchors too, largest stake first
         if search.night_good && self.p.hrg_anchors > 0 && seconds_left >= self.max_exposure {
             let t_max = self.max_exposure;
             let mut extra: Vec<(f64, usize)> = Vec::new();
@@ -365,7 +365,7 @@ impl Planner {
             by_value.sort_by(|a, b| b.partial_cmp(a).unwrap_or(std::cmp::Ordering::Equal));
             let take = if level == 0 { self.p.n_dense } else { 2 };
             for (_, key) in by_value.into_iter().take(take) {
-                // a bin whose science is all done has no best target (stock: a panic, and a 900 s wait)
+                // a bin whose science is all done has no best target
                 let Some(&(_, j)) = bin_best.get(&key) else { continue };
                 if !anchors.contains(&j) && search.exact(j).is_some() {
                     anchors.push(j);
@@ -383,8 +383,8 @@ impl Planner {
         let (pitch, fov) = (self.grid.pitch, self.grid.fov);
         // a field's half diagonal: every target that can land on its glass is this close to its centre
         let field_radius = fov / std::f64::consts::SQRT_2 + 0.03;
-        // the neighbourhood of an anchor must cover every field it is placed in (stock: 2.1 deg x field scale, which
-        // misses the far fibres of a corner placement)
+        // the neighbourhood of an anchor must cover every field it is placed in (a fixed radius misses the far
+        // fibres of a corner placement)
         let cover_radius = |list: &[usize]| {
             let reach = list.iter().map(|&f| {
                 let (n, e) = self.grid.fiber_center(f);
@@ -508,7 +508,7 @@ impl Planner {
                 k = durations.iter().position(|&t| t == found.t).unwrap_or(k);
                 steps.push((found, s_alt, s_az, near));
             }
-            // where the scan ended (notes/15)
+            // where the scan ended
             let fin = (cs_final > 1).then(|| {
                 let (ra, dec) = altaz_to_radec(c_alt, c_az, lst, lat);
                 (net, c_alt, c_az, durations[k], s.near_set(ra, dec, scan_radius, &visible))
@@ -563,8 +563,8 @@ impl Planner {
         }
         if best.is_some() && search.pl.p.t_breaks && level == 0 {
             // duration: the gain curve of a fibre only bends down where a leading target saturates, so the best
-            // duration of this pointing is one of those times (or a slot boundary, or a grid point). Complete-or-skip
-            // (notes/15): T is chosen with the pointing, so the best distinct scanned pointings are re-timed too.
+            // duration of this pointing is one of those times (or a slot boundary, or a grid point). Complete-or-skip:
+            // T is chosen with the pointing, so the best distinct scanned pointings are re-timed too.
             let b = best.as_ref().unwrap();
             let mut runs: Vec<(f64, f64, f64, Vec<usize>)> = vec![(b.1, b.2, b.3, best_near.clone())];
             finalists.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
@@ -641,7 +641,7 @@ impl Planner {
                 j,
                 Pred {
                     model,
-                    // stock inference of the multiplier of an unsaturated hit (the fault signal E is tuned on it)
+                    // fixed inference of the multiplier of an unsaturated hit (the fault signal E is tuned on it)
                     band_model: model / 0.95,
                     alt: inf.alt,
                     az: inf.az,
@@ -696,7 +696,7 @@ struct Base {
     mult: f64,
     stake_mult: f64,
     u: [f64; 3],
-    /// A hard required target in a good window (notes/19).
+    /// A hard required target in a good window.
     good: bool,
 }
 
@@ -721,7 +721,7 @@ struct Found {
     total: f64,
 }
 
-/// Per-decision caches and closures of `Planner::plan` (python-pro's exact / full / gain / quick / evaluate).
+/// Per-decision caches and closures of `Planner::plan` (exact / full / gain / quick / evaluate).
 struct Search<'a> {
     pl: &'a Planner,
     now: f64,
@@ -738,19 +738,19 @@ struct Search<'a> {
     top_mult: f64,
     best_rate: f64,
     lam: f64,
-    /// Mean urgency factor of this decision's candidate pool (1.0 with the stock urgency).
+    /// Mean urgency factor of this decision's candidate pool (1.0 when the urgency is not normalised).
     urg_norm: f64,
     /// Mean hour-angle preference of the pool (1.0 when off), and the sidereal angle left tonight.
     tim_norm: f64,
     rem_deg: f64,
-    /// Tonight's quality is measured (and, with PRO_HRG_TOP_Z > -9, above that z): hard required good windows (notes/19).
+    /// Tonight's quality is measured (and, with PRO_HRG_TOP_Z > -9, above that z): hard required good windows.
     night_good: bool,
     /// This decision's exposure grid, and gain3(j, durs[d]) memoised per target (slot per target, NaN = not yet);
     /// the fourth value is option_cost(j, durs[d]) (NaN = not yet).
     durs: Vec<f64>,
     gslot: Vec<u32>,
     gvals: Vec<[f64; 4]>,
-    /// Exposures shorter than this (the stock grid's shortest) only count targets they complete: a short partial
+    /// Exposures shorter than this (the level-0 grid's shortest) only count targets they complete: a short partial
     /// exposure is almost always superseded later, and its linear partial gain would make it look cheap.
     short_floor: f64,
     /// Request capacity penalties by (request, exposure seconds, targets it serves), memoised for this decision.
@@ -796,7 +796,7 @@ impl<'a> Search<'a> {
             pl.flux[i] * t_max * pl.sky_model(lunar, alt_mid) * pl.scale / pl.f0t0 / pl.req_thr >= raw_min
         };
         // a hard target's failed attempts were unlucky nights, not a wrong prediction: no 0.8^attempts on its stake
-        // ... unless many long attempts stayed well below the threshold (futility guard, notes/41)
+        // ... unless many long attempts stayed well below the threshold (futility guard)
         let stake_mult = if hard { 0.6f64.powf(pl.misses[i] as f64) * dirf * pl.futile_mult(i) } else { damp * dirf };
         let item = Base { alt, az, lunar, up, mult: urgency * damp * dirf * timing / self.tim_norm, stake_mult, u: unit_altaz(alt, az), good };
         self.base[i] = Some(Some(item));
@@ -859,13 +859,13 @@ impl<'a> Search<'a> {
                 *x *= p.partial_discount; // it will be completed later: this partial exposure would be wasted
             }
         }
-        let (mut extra, stake) = self.required_value(i, t, model); // program-independent: stock required bonus
+        let (mut extra, stake) = self.required_value(i, t, model); // program-independent: plain required bonus
         extra += self.request_gain(i, t, model); // ... and request bonus
         let keep = 1.0 - self.superseded(i, reach);
         g.map(|x| (x * keep + extra) * inf.mult + stake * inf.stake_mult)
     }
 
-    /// (stock required bonus, deadline-aware required stake) of exposing target i for t seconds at sky model
+    /// (plain required bonus, deadline-aware required stake) of exposing target i for t seconds at sky model
     /// `model`: one-time values, paid once per required target.
     fn required_value(&self, i: usize, t: f64, model: f64) -> (f64, f64) {
         let pl = self.pl;
@@ -890,7 +890,7 @@ impl<'a> Search<'a> {
         (extra, stake)
     }
 
-    /// Fibre option cost (PRO_FOV = kappa, notes/43-night-lossA): the part of target i's future surplus that an exposure
+    /// Fibre option cost (PRO_FOV = kappa): the part of target i's future surplus that an exposure
     /// of t seconds uses up, to choose between the targets of one fibre. Surplus S = V - lam_f T: V the gain of finishing
     /// it later from its current best at this sky, T the fibre-seconds that takes (<= T_max) at one fibre's share of the
     /// time price; reaching r now leaves max(0, V (1 - r) - lam_f T) for later, so it uses min(S, V r). Times P(its cell
@@ -921,7 +921,7 @@ impl<'a> Search<'a> {
         p_later * used_surplus(v, self.lam / pl.grid.n.max(1) as f64 * t_full, rate * t, pl.p.fov_beta)
     }
 
-    /// Complete-or-skip (notes/15): expected share of a partial gain (reach < 1) a later exposure supersedes.
+    /// Complete-or-skip: expected share of a partial gain (reach < 1) a later exposure supersedes.
     fn superseded(&self, i: usize, reach: f64) -> f64 {
         let pl = self.pl;
         if pl.cs_p[i] <= 0.0 || reach >= 1.0 || pl.request_terms.contains_key(&i) {
@@ -1020,7 +1020,7 @@ impl<'a> Search<'a> {
 
     /// f(item) for every item, in item order. With PRO_THREADS = 2 this search and its twin (on a second thread)
     /// share the items. Every memo is a function of the decision state, so a result does not depend on the worker
-    /// that made it: the caller sees exactly the single-thread results (notes/23).
+    /// that made it: the caller sees exactly the single-thread results.
     fn par_map<T: Sync, R: Send>(&mut self, items: &[T], key: impl Fn(&T) -> f64, f: impl Fn(&mut Search<'a>, &T) -> R + Sync) -> Vec<R> {
         if self.pl.p.threads < 2 || items.len() < 2 {
             return items.iter().map(|x| f(self, x)).collect();
@@ -1227,7 +1227,7 @@ impl<'a> Search<'a> {
                                 best[k] = (r, j, g[k]);
                             }
                         } else if g[k] > best[k].0 || (g[k] == best[k].0 && best[k].1 != usize::MAX && j > best[k].1) {
-                            // python max((gain, j)): larger gain, ties to the larger index
+                            // max over (gain, j): larger gain, ties to the larger index
                             best[k] = (g[k], j, g[k]);
                         }
                     }
@@ -1271,7 +1271,7 @@ impl<'a> Search<'a> {
         found
     }
 
-    /// PRO_PATH_JITTER (notes/18): a fixed pseudo-random number in [-1, 1) per (seed, decision, pointing, T, program),
+    /// PRO_PATH_JITTER: a fixed pseudo-random number in [-1, 1) per (seed, decision, pointing, T, program),
     /// so a pointing evaluated twice in one decision gets the same value.
     fn jitter(&self, c_alt: f64, c_az: f64, t: f64, k: usize) -> f64 {
         let mix = |mut z: u64| {
@@ -1287,7 +1287,7 @@ impl<'a> Search<'a> {
         (h >> 11) as f64 / (1u64 << 52) as f64 - 1.0
     }
 
-    /// Mean shift of a field-sized square kernel (notes/07 #7): move the centre to the gain-weighted mean of the
+    /// Mean shift of a field-sized square kernel: move the centre to the gain-weighted mean of the
     /// targets inside the field until it settles (a seed for candidate pointings; `weights[k]` is `near[k]`'s).
     fn mean_shift(&self, start: (f64, f64), near: &[usize], weights: &[f64], iters: usize) -> (f64, f64) {
         let grid = &self.pl.grid;
@@ -1316,7 +1316,7 @@ impl<'a> Search<'a> {
         centre
     }
 
-    /// Exact cell-edge shift scan (notes/07 #7, 07b G3). A shift (dx east, dy north) moves target j to (e_j - dx,
+    /// Exact cell-edge shift scan. A shift (dx east, dy north) moves target j to (e_j - dx,
     /// n_j - dy); its fibre changes only where that crosses a glass edge +- margin, so within pitch/2 the sum of
     /// best gains at `durs[k]` is piecewise constant on those breakpoints: sweeping dy per dx interval visits every
     /// assignment. Returns the best (dy, dx, total) (ties: wider cell), or None when nothing beats `floor`.

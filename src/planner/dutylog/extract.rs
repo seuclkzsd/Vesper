@@ -1,6 +1,6 @@
-//! Line classifier + fact extractor (one cleaned, decoded duty-log line -> DutyFacts). Dates follow notes/28 §1:
-//! single times are calendar dates, "M/D 那晚 a到b" is night-owned (< 12:00 = next day), observed events are the most
-//! recent occurrence of that clock time before the entry was written.
+//! Line classifier + fact extractor (one cleaned, decoded duty-log line -> DutyFacts). Dates: single times are
+//! calendar dates, "M/D 那晚 a到b" is night-owned (< 12:00 = next day), observed events are the most recent
+//! occurrence of that clock time before the entry was written.
 use super::decode::{cn_num, duration, morse};
 use super::*;
 use crate::skymath::{civil_from_days as civil, days_from_civil as days};
