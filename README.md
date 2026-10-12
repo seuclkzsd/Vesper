@@ -34,6 +34,16 @@ validated and clamped to a rule trust region, and the stage falls back to the ru
 
 ## Results
 
+**Final ranking: 2nd of 102 ranked teams.** The final ranking comes from the hidden cards E–H. The organizers ran
+each team's final version on them with its model key, and published the results on the
+[final results page](https://create.gosim.org/survey26/platform/leaderboard/final-hidden):
+
+| Rank | Team | **Total (mean of E–H)** | E | F | G | H |
+|---:|---|---:|---:|---:|---:|---:|
+| 1 | Pleiades | 33,575.79 | 37,542.8 | 31,005.2 | 31,412.0 | 34,343.3 |
+| **2** | **starwing (Vesper)** | **33,051.03** | 37,193.9 | 30,722.2 | 30,307.0 | 33,981.0 |
+| 3 | 迷星叫 | 32,598.75 | 37,312.4 | 30,206.4 | 29,441.2 | 33,435.0 |
+
 Online phase of the competition, final version, rules-only evaluation (no model):
 
 | Card | A | B | C | D | **A–D mean** | A1 | B1 | C1 | D1 | **super** |
@@ -41,8 +51,7 @@ Online phase of the competition, final version, rules-only evaluation (no model)
 | Score | 27,636.8 | 44,686.4 | 29,013.9 | 33,255.5 | **33,648.2** | 37,312.7 | 57,196.7 | 28,747.4 | 61,648.5 | **174,842.9** |
 
 The super board weights the cards as 0.2 × (A–D sum) + 0.8 × (A1–D1 sum). A1–D1 are the "realistic" cards with duty
-logs. When the online phase closed, the team was 2nd on both the A–D board and the super board. The final ranking
-comes from hidden cards E–H, three runs each.
+logs. When the online phase closed, the team was 2nd on both the A–D board and the super board.
 
 How the agent improved over the online phase (A–D mean on the platform):
 
